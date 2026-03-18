@@ -1,33 +1,44 @@
-import re
 import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
-from keep_alive import keep_alive
+import telebot
+from flask import Flask
+from threading import Thread
 
-# Token ကို Environment Variable ကနေ ယူမယ်
-TOKEN = os.getenv("8773647679:AAFSXJLs_x0mTnnI5U0xRytdk7MDvC3eV2A")
+# 1. Telegram Bot Token ကို Environment Variable ကနေ ဖတ်မယ်
+TOKEN = os.getenv("8773647679:AAFAeUweMplswKY8NgwK0wsW8u8YHXqDVFk")
+bot = telebot.TeleBot(TOKEN)
 
-async def calculate(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # စာသား သို့မဟုတ် ပုံနဲ့တွဲပါတဲ့စာသားကို ယူမယ်
-    text = update.message.text or update.message.caption
-    if not text: return
+# 2. Render အတွက် Port Binding လုပ်ပေးဖို့ Flask Web Server တစ်ခု တည်ဆောက်မယ်
+app = Flask('')
 
-    # အပေါင်း၊ အနှုတ်၊ အမြှောက်၊ အစား လက္ခဏာနဲ့ ဂဏန်းတွေကိုပဲ သန့်စင်ယူမယ်
-    # Emoji နဲ့ တခြားစာသားတွေကို ဖယ်ထုတ်ပစ်တာပါ
-    clean_text = text.replace('×', '*').replace('÷', '/')
-    clean_text = re.sub(r'[^0-9+\-*/.]', '', clean_text)
+@app.route('/')
+def home():
+    return "Bot is alive!"
 
+def run_flask():
+    # Render က ပေးတဲ့ PORT (10000) မှာ run ပေးဖို့ ဖြစ်ပါတယ်
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+# 3. Bot ရဲ့ လုပ်ဆောင်ချက်များ
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "ဟလို! ကျွန်တော်က Render ပေါ်မှာ အောင်မြင်စွာ Run နေတဲ့ Bot ပါ။")
+
+@bot.message_handler(func=lambda message: True)
+def echo_all(message):
     try:
-        # တွက်ချက်မယ်
-        result = eval(clean_text)
-        # Mono format (`...`) နဲ့ ပြန်ပို့မယ်
-        response = f"`{result}`"
-        await update.message.reply_text(response, parse_mode='MarkdownV2')
+        # သင်္ချာတွက်ချက်မှု လုပ်နိုင်အောင် ပြင်ဆင်ထားပေးပါတယ်
+        result = eval(message.text)
+        bot.reply_to(message, f"အဖြေမှာ - {result}")
     except:
-        pass # မတွက်နိုင်တဲ့စာသားဆိုရင် ဘာမှပြန်မလုပ်ဘူး
+        bot.reply_to(message, f"မင်း ပြောလိုက်တာက - {message.text}")
 
-if __name__ == '__main__':
-    keep_alive() # Web server စမယ်
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT | filters.Caption, calculate))
-    app.run_polling()
+# 4. Flask ကို Thread နဲ့ နောက်ကွယ်မှာ run ပြီး Bot ကို အသက်သွင်းမယ်
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.start()
+
+if __name__ == "__main__":
+    print("Starting Bot...")
+    keep_alive()  # Web Server ကို စတင်မယ်
+    bot.infinity_polling()  # Bot ကို စတင်မယ်
